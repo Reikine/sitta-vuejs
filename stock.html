@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manajemen Stok Bahan Ajar - SITTA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/toast.css" />
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js" defer></script>
+  <script src="js/stock-app.js" type="module" defer></script>
+</head>
+
+<body>
+  <div id="app-stock" class="app-layout" v-cloak>
+
+    <div class="toast-container">
+      <transition-group name="toast">
+        <div v-for="toast in toasts" :key="toast.id" :class="['toast-item', toast.type]" @click="removeToast(toast.id)">
+          <span>{{ toast.message }}</span>
+          <span class="toast-close-btn">&times;</span>
+        </div>
+      </transition-group>
+    </div>
+
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span>SITTA - Informasi Stok</span>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-profile" title="Profil Akun">
+          <span class="material-symbols-outlined">account_circle</span>
+          <span class="profile-name">{{ currentUser.name || 'Pengguna' }}</span>
+        </button>
+
+        <button type="button" @click="goBack" class="btn-profile">
+          <span class="material-symbols-outlined icon-18">arrow_back</span>
+          <span>Dashboard</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="stock-page-header">
+        <div>
+          <h2>Informasi Stok Bahan Ajar</h2>
+          <p class="subtitle">Kelola ketersediaan bahan ajar.</p>
+        </div>
+        <div v-if="isAdmin">
+          <button type="button" @click="toggleNewForm" class="btn-primary">
+            <span class="material-symbols-outlined icon-18">add</span>
+            {{ showNewForm ? 'Tutup Form' : 'Bahan Ajar' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-panel">
+        <div class="form-group">
+          <label>UT-Daerah:</label>
+          <select v-model="selectedRegion" class="form-control">
+            <option value="">Semua UT-Daerah</option>
+            <option v-for="region in regionList" :key="region" :value="region">
+              {{ region }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>STATUS STOK:</label>
+          <button type="button" @click="toggleReorderFilter"
+            :class="['btn-filter-status', { active: isReorderFilterActive }]">
+            {{ isReorderFilterActive ? 'Tampilkan Semua' : 'Perlu Re-order' }}
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>Kategori Mata Kuliah:</label>
+          <select v-model="selectedCategory" class="form-control" :disabled="!selectedRegion">
+            <option value="">Semua Kategori</option>
+            <option v-for="cat in availableCategories" :key="cat" :value="cat">
+              {{ cat }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Cari Bahan Ajar:</label>
+          <input type="text" v-model="searchQuery" placeholder="Ketik kode atau judul buku..." class="form-control" />
+        </div>
+
+        <button type="button" @click="resetFilters" class="btn-icon-reset" title="Reset Filter">
+          <span class="material-symbols-outlined">restart_alt</span>
+        </button>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th @click="handleSort('itemCode')" class="sortable-th">
+                Kode <span class="material-symbols-outlined sort-icon">{{ getSortIcon('itemCode', sortColumn,
+                  sortDirection) }}</span>
+              </th>
+              <th @click="handleSort('title')" class="sortable-th">
+                NAMA ITEM <span class="material-symbols-outlined sort-icon">{{ getSortIcon('title', sortColumn,
+                  sortDirection) }}</span>
+              </th>
+              <th>KATEGORI</th>
+              <th>UT-DAERAH</th>
+              <th>LOKASI RAK</th>
+              <th @click="handleSort('qty')" class="sortable-th">
+                STOK <span class="material-symbols-outlined sort-icon">{{ getSortIcon('qty', sortColumn, sortDirection)
+                  }}</span>
+              </th>
+              <th @click="handleSort('price')" class="sortable-th">
+                HARGA <span class="material-symbols-outlined sort-icon">{{ getSortIcon('price', sortColumn,
+                  sortDirection) }}</span>
+              </th>
+              <th>STOK MIN</th>
+              <th>STATUS</th>
+              <th v-if="isAdmin">AKSI</th>
+              <th>INFO</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in filteredStock" :key="item.itemCode">
+              <td>{{ item.itemCode }}</td>
+              <td>{{ item.title }}</td>
+              <td>{{ item.category }}</td>
+              <td>{{ item.region }}</td>
+              <td>{{ item.rackLocation }}</td>
+              <td>{{ item.qty }}</td>
+              <td style="white-space: nowrap;">{{ formatPrice(item.price) }}</td>
+              <td>{{ item.safetyStock }}</td>
+              <td>
+                <span :class="{
+                  'badge-aman': item.qty >= item.safetyStock,
+                  'badge-menipis': item.qty < item.safetyStock && item.qty > 5,
+                  'badge-kritis': item.qty <= 5 && item.qty > 0,
+                  'badge-kosong': item.qty === 0
+                  }">
+                  {{
+                  item.qty === 0
+                  ? 'Kosong'
+                  : (item.qty <= 5 ? 'Kritis' : (item.qty < item.safetyStock ? 'Menipis' : 'Aman' )) }} </span>
+              </td>
+              <td v-if="isAdmin">
+                <button type="button" @click="openBookModal(item)" class="btn-edit">
+                  Edit
+                </button>
+              </td>
+              <td class="text-center">
+                <span v-if="item.notesHTML" class="material-symbols-outlined icon-info-btn"
+                  :title="item.notesHTML.replace(/<[^>]*>?/gm, '')">
+                  info
+                </span>
+                <span v-else class="text-muted">-</span>
+              </td>
+            </tr>
+            <tr v-if="filteredStock.length === 0">
+              <td :colspan="isAdmin ? 11 : 10" class="empty-table-cell">
+                Data bahan ajar tidak ditemukan.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      SITTA &copy; 2026 Universitas Terbuka
+    </footer>
+
+    <div v-if="showNewForm && isAdmin" class="modal-backdrop">
+      <div class="modal-card">
+        <h3>Form Tambah Bahan Ajar Baru</h3>
+
+        <form @submit.prevent="handleRegisterBook">
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>KODE ITEM:</label>
+              <input type="text" v-model="newBook.itemCode" placeholder="Contoh: EKMA4116" class="form-control"
+                required />
+            </div>
+
+            <div class="form-group">
+              <label>JUDUL BUKU / BAHAN AJAR:</label>
+              <input type="text" v-model="newBook.title" placeholder="Nama mata kuliah..." class="form-control"
+                required />
+            </div>
+
+            <div class="form-group">
+              <label>KATEGORI MATA KULIAH:</label>
+              <select v-model="newBook.category" class="form-control" required>
+                <option value="" disabled>Pilih Kategori</option>
+                <option value="MK Wajib">MK Wajib</option>
+                <option value="MK Pilihan">MK Pilihan</option>
+                <option value="Praktikum">Praktikum</option>
+                <option value="Problem-Based">Problem Based</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>UT-DAERAH:</label>
+              <select v-model="newBook.region" class="form-control" required>
+                <option value="" disabled>Pilih UT-Daerah</option>
+                <option value="Jakarta">Jakarta</option>
+                <option value="Surabaya">Surabaya</option>
+                <option value="Makassar">Makassar</option>
+                <option value="Padang">Padang</option>
+                <option value="Denpasar">Denpasar</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>LOKASI RAK:</label>
+              <input type="text" v-model="newBook.rackLocation" placeholder="Contoh: R1-A3" class="form-control" />
+            </div>
+
+            <div class="form-group">
+              <label>HARGA SATUAN (RP):</label>
+              <input type="number" v-model.number="newBook.price" placeholder="Contoh: 65000" class="form-control"
+                min="0" required />
+            </div>
+
+            <div class="form-group">
+              <label>JUMLAH STOK AWAL (QTY):</label>
+              <input type="number" v-model.number="newBook.qty" class="form-control" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>SAFETY STOCK (MINIMUM):</label>
+              <input type="number" v-model.number="newBook.safetyStock" class="form-control" min="0" />
+            </div>
+
+            <div class="form-group form-group-full" style="grid-column: 1 / -1;">
+              <label>CATATAN / KETERANGAN (OPSIONAL):</label>
+              <textarea v-model="newBook.notesHTML" placeholder="Tambahan informasi atau catatan khusus bahan ajar..."
+                class="form-control" rows="2"></textarea>
+            </div>
+
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-save">Simpan Data</button>
+            <button type="button" @click="toggleNewForm" class="btn-cancel">Batal</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="isModalOpen && isAdmin" class="modal-backdrop">
+      <div class="modal-card modal-card-sm">
+        <h3>Kelola Stok Bahan Ajar</h3>
+
+        <div v-if="selectedBook" class="modal-book-info">
+          <p><strong>Kode:</strong> {{ selectedBook.itemCode }}</p>
+          <p><strong>Judul:</strong> {{ selectedBook.title }}</p>
+          <p><strong>Stok Saat Ini:</strong> <span class="text-primary-bold">{{ selectedBook.qty }}</span> &rarr;
+            <strong>Stok Baru:</strong> <span class="text-primary-bold">{{ tempQty }}</span>
+          </p>
+        </div>
+
+        <form @submit.prevent="saveBookChanges">
+          <div class="form-group form-group-mb">
+            <label>JUMLAH PENAMBAHAN / PENGURANGAN:</label>
+            <input type="number" v-model.number="stockActionInput" placeholder="Masukkan angka..." class="form-control"
+              min="1" required />
+          </div>
+
+          <div class="stock-action-group">
+            <button type="button" @click.prevent="addStock"
+              :class="['btn-action', { 'active-add': activeAction === 'add' }]">
+              <span>+ Tambah Stok</span>
+            </button>
+            <button type="button" @click.prevent="reduceStock"
+              :class="['btn-action', { 'active-reduce': activeAction === 'reduce' }]">
+              <span>- Kurangi Stok</span>
+            </button>
+          </div>
+
+          <div class="form-actions modal-footer-actions">
+            <button type="submit" class="btn-save">Simpan Perubahan</button>
+            <button type="button" @click="closeModal" class="btn-cancel">Batal</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</body>
+
+</html>
