@@ -1,8 +1,8 @@
 import { initialUserData } from './data/data.js';
 import { useToast } from './composables/useToast.js';
-import { getStorage, setStorage } from './utils.js';
+import { getStorage, setStorage, resetToMasterData } from './utils.js';
 
-const { createApp, ref, reactive, onMounted } = Vue;
+const { createApp, ref, reactive, onMounted, onUnmounted } = Vue;
 
 createApp({
     setup() {
@@ -18,11 +18,20 @@ createApp({
         const isResetModalOpen = ref(false);
         const resetEmail = ref('');
 
+        let idleTimer = null;
+
         onMounted(() => {
             userDb.value = getStorage('user_db', initialUserData);
             if (!localStorage.getItem('user_db')) {
                 setStorage('user_db', initialUserData);
             }
+
+            const twoMinutes = 2 * 60 * 1000;
+            idleTimer = setTimeout(() => {
+                resetToMasterData(initialUserData);
+                userDb.value = [...initialUserData];
+                showToast('Aplikasi telah di-reset ke master data awal.', 'info');
+            }, twoMinutes);
         });
 
         const togglePassword = () => {

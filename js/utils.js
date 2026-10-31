@@ -127,3 +127,10 @@ export const checkAndPromoteStatus = (trackingMap) => {
     }
     return updated;
 };
+
+export const resetToMasterData = (initialUserData = []) => {
+    localStorage.clear();
+    if (initialUserData.length > 0) {
+        setStorage('user_db', initialUserData);
+    }
+};
