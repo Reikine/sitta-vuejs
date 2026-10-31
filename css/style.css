@@ -460,11 +460,18 @@
 }
 
 .table-wrapper {
+width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
   box-shadow: var(--md-elevation-1);
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper table {
+  width: 100%;
+  min-width: 1100px; 
 }
 
 .data-table {

@@ -3,11 +3,10 @@ export const goBack = () => {
 };
 
 /**
- * Mengembalikan nama ikon Material Symbols berdasarkan status sorting kolom
- * @param {string} column - Nama kolom tabel
- * @param {string} currentColumn - Kolom yang sedang aktif disortir
- * @param {string} direction - Arah sortir ('asc' atau 'desc')
- * @returns {string} Nama ikon Material Symbols
+ * @param {string} column 
+ * @param {string} currentColumn 
+ * @param {string} direction 
+ * @returns {string} 
  */
 export const getSortIcon = (currentCol, targetCol, direction) => {
     if (currentCol !== targetCol) return 'swap_vert';
