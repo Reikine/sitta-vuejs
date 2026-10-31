@@ -17,7 +17,7 @@
 <body>
   <main id="app-auth">
 
-    <div class="toast-container">
+    <div class="toast-container" v-cloak>
       <transition-group name="toast">
         <div v-for="toast in toasts" :key="toast.id" :class="['toast-item', toast.type]" @click="removeToast(toast.id)">
           <span>{{ toast.message }}</span>
